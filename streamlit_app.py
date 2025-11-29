@@ -9,10 +9,10 @@ st.markdown(
     """
 This calculator uses **baked-in recipes** from your JFFD DIY sheet.
 
-For each recipe (Chicken / Turkey / Beef):
+For each recipe (Chicken / Turkey / Beef / Fish):
 
-- Column F (`Large x…`) is treated as the **7-day batch**
-- That 7-day batch is calibrated to the original **Dex + Indy daily ounces**
+- The baked-in amounts are a **7-day batch**
+- Each batch is calibrated to the original **Dex + Indy daily ounces**
 - You can scale based on:
   - How many **days** you want to prep
   - How much **Dexter & Indiana eat per day now (oz)**
@@ -22,9 +22,8 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
 )
 
 # -------------------------------------------------------------------
-# Embedded recipe data (extracted from your Excel; no file needed)
-# Column F = 7-day batch
-# base_daily_oz = Dex + Indy from row 2 of each sheet
+# Embedded recipe data (no Excel needed)
+# base_7day_amount = base batch for base_days with base_daily_oz total intake
 # -------------------------------------------------------------------
 
 RECIPE_DATA = {
@@ -84,6 +83,26 @@ RECIPE_DATA = {
             {"name": "Nutrient",           "base_7day_amount": 3.75,   "unit": "tbsp"},
         ],
     },
+    "Fish": {
+        # Calibrated so that this 7-day batch matches your real use:
+        # Dexter = 11.75 oz/meal x2 = 23.5; Indiana = 7 oz/meal x2 = 14 → 37.5 oz/day
+        "base_daily_oz": 37.5,
+        "dex_default": 23.5,
+        "indy_default": 14.0,
+        "base_days": 7.0,
+        "ingredients": [
+            {"name": "Whitefish (Cod/Pollock/Haddock)", "base_7day_amount": 7.20, "unit": "lbs"},
+            {"name": "Sweet Potatoes (with skin)",      "base_7day_amount": 4.96, "unit": "lbs"},
+            {"name": "Russet Potatoes (with skin)",     "base_7day_amount": 4.96, "unit": "lbs"},
+            {"name": "Green Beans",                     "base_7day_amount": 9.34, "unit": "oz"},
+            {"name": "Broccoli",                        "base_7day_amount": 9.34, "unit": "oz"},
+            {"name": "Sunflower Oil",                   "base_7day_amount": 6.23, "unit": "oz"},
+            {"name": "Lemon Juice",                     "base_7day_amount": 3.11, "unit": "oz"},
+            {"name": "Flaxseed (ground)",               "base_7day_amount": 2.33, "unit": "oz"},
+            {"name": "Dried Seaweed (unseasoned Nori)", "base_7day_amount": 0.78, "unit": "oz"},
+            {"name": "Fish & Sweet Potatoes DIY Nutrient Blend", "base_7day_amount": 3.11, "unit": "tbsp"},
+        ],
+    },
 }
 
 # -------------------------------------------------------------------
@@ -108,7 +127,7 @@ st.markdown(
     f"""
 **Selected recipe:** `{selected_recipe_name}`  
 **Original base daily (Dex + Indy):** `{base_daily_oz:.1f} oz/day`  
-**Original 7-day batch:** column F (`Large x…`) from your JFFD sheet.
+**Original 7-day batch:** values baked in from your DIY sheet / calibration.
 """
 )
 
@@ -193,14 +212,14 @@ if total_daily_oz == 0:
 scale_factor = (total_daily_oz / base_daily_oz) * (days / base_days)
 
 rows = []
-print_rows = []  # for print view
+print_rows = []
 
 for ing in ingredients:
     name = ing["name"]
     base_7 = ing["base_7day_amount"]
     unit = ing["unit"]
 
-    # Per-day in original recipe
+    # Per-day in original recipe for that recipe's base_daily_oz
     base_per_day = base_7 / base_days
 
     # Per-day for your current combined intake
@@ -255,7 +274,6 @@ if show_print:
     st.markdown(
         f"**Print view for {selected_recipe_name} – Total for {int(days)} days**"
     )
-    # use st.table for a simpler, print-ish look
     st.table(print_df)
 
 if selected_recipe_name == "Chicken":
@@ -264,7 +282,13 @@ if selected_recipe_name == "Chicken":
         "`4.703 lb` so the protein is shown in pounds. All other ingredients "
         "retain their original units."
     )
+elif selected_recipe_name == "Fish":
+    st.caption(
+        "Fish recipe is calibrated so that a 7-day batch uses **7.2 lb of fish** "
+        "and matches Dexter at 11.75 oz/meal (twice daily) and Indiana at 7 oz/meal "
+        "(twice daily), for a total of 37.5 oz/day."
+    )
 else:
     st.caption(
-        "All amounts are scaled from the original column-F 7-day batch for this recipe."
+        "All amounts are scaled from the original 7-day batch values for this recipe."
     )
