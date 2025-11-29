@@ -1,165 +1,234 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Beef Meal Prep Calculator", layout="centered")
+st.set_page_config(page_title="JFFD DIY Meal Prep Calculator", layout="wide")
 
-st.title("Beef Meal Prep Calculator 🥩🐶")
+st.title("JFFD DIY Meal Prep Calculator 🐶")
 
 st.markdown(
     """
-This calculator uses the **7-day batch in column F (Large x1.25)** from your sheet.
+This app uses **baked-in formulas** from your JFFD DIY sheet.
 
-Assumptions baked in:
+For each recipe (Chicken / Turkey / Beef):
 
-- Column F is a **7-day batch**.
-- That batch is correct when **Dex + Indiana eat 32 oz/day total**.
-- We scale **up or down** based on:
-  - Your dogs' combined daily ounces, and
-  - How many days you want to prep.
+- Column F (`Large x…`) is treated as the **7-day batch**
+- That 7-day batch is correct for the **Dex + Indy daily ounces** in the original sheet
+- We scale based on:
+  - Your chosen **number of days**
+  - Your current combined **Dexter + Indiana oz/day**
 """
 )
 
-# ============================
-# CONSTANTS FROM YOUR RECIPE
-# ============================
+# -------------------------------------------------------------------
+# Embedded recipe data (extracted from your Excel)
+# Column F = 7-day batch
+# base_daily_oz = Dex + Indy from row 2 of each sheet
+# -------------------------------------------------------------------
 
-BASE_DAILY_OZ = 32.0   # Dex + Indy total / day in the original sheet
-BASE_DAYS = 7.0        # Column F is a 7-day batch
+RECIPE_DATA = {
+    "Chicken": {
+        "base_daily_oz": 36.0,   # Dex 22 + Indy 14
+        "dex_default": 22.0,
+        "indy_default": 14.0,
+        "base_days": 7.0,
+        "ingredients": [
+            # Column F = "Large x1.75" 7-day batch
+            {"name": "Chicken Thighs",     "base_7day_amount": 75.25,  "unit": "oz"},
+            {"name": "Chicken Liver",      "base_7day_amount": 24.5,   "unit": "oz"},
+            {"name": "Apple",              "base_7day_amount": 8.4,    "unit": "oz"},
+            {"name": "Carrots",            "base_7day_amount": 14.0,   "unit": "oz"},
+            {"name": "Kale",               "base_7day_amount": 14.0,   "unit": "oz"},
+            {"name": "White Rice (Dry)",   "base_7day_amount": 19.25,  "unit": "oz"},
+            {"name": "Brown Rice (Dry)",   "base_7day_amount": 11.2,   "unit": "oz"},
+            {"name": "Sunflower Oil",      "base_7day_amount": 2.625,  "unit": "tsp"},
+            {"name": "Omega",              "base_7day_amount": 0.875,  "unit": "tsp"},
+            {"name": "Flaxseed Oil",       "base_7day_amount": 0.875,  "unit": "tsp"},
+            {"name": "Nutrient",           "base_7day_amount": 13.125, "unit": "tbsp"},
+        ],
+    },
+    "Turkey": {
+        "base_daily_oz": 30.0,   # Dex 19 + Indy 11
+        "dex_default": 19.0,
+        "indy_default": 11.0,
+        "base_days": 7.0,
+        "ingredients": [
+            # Column F = "Large x1.2" 7-day batch
+            {"name": "Ground Turkey",      "base_7day_amount": 6.0,   "unit": "lbs"},
+            {"name": "Turkey Liver",       "base_7day_amount": 3.0,   "unit": "oz"},
+            {"name": "Whole Wheat Pasta",  "base_7day_amount": 48.0,  "unit": "oz"},  # from "Pasta" 48 oz
+            {"name": "Carrots",            "base_7day_amount": 6.0,   "unit": "oz"},
+            {"name": "Zucchini",           "base_7day_amount": 6.0,   "unit": "oz"},
+            {"name": "Broccoli",           "base_7day_amount": 6.0,   "unit": "oz"},
+            {"name": "Cranberries",        "base_7day_amount": 3.0,   "unit": "oz"},
+            {"name": "Omega",              "base_7day_amount": 6.0,   "unit": "tsp"},
+            {"name": "Nutrient",           "base_7day_amount": 3.0,   "unit": "tbsp"},
+        ],
+    },
+    "Beef": {
+        "base_daily_oz": 32.0,   # Dex 20 + Indy 12
+        "dex_default": 20.0,
+        "indy_default": 12.0,
+        "base_days": 7.0,
+        "ingredients": [
+            # Column F = "Large x1.25" 7-day batch
+            {"name": "Ground Beef",        "base_7day_amount": 6.25,   "unit": "lbs"},
+            {"name": "Beef Liver",         "base_7day_amount": 3.125,  "unit": "oz"},
+            {"name": "Russet Potatoes",    "base_7day_amount": 71.25,  "unit": "oz"},
+            {"name": "Sweet Potatoes",     "base_7day_amount": 37.5,   "unit": "oz"},
+            {"name": "Carrots",            "base_7day_amount": 6.25,   "unit": "oz"},
+            {"name": "Green Beans",        "base_7day_amount": 6.25,   "unit": "oz"},
+            {"name": "Green Peas",         "base_7day_amount": 3.125,  "unit": "oz"},
+            {"name": "Apple",              "base_7day_amount": 3.125,  "unit": "oz"},
+            {"name": "Sunflower Oil",      "base_7day_amount": 4.6875, "unit": "oz"},
+            {"name": "Omega",              "base_7day_amount": 1.25,   "unit": "tbsp"},
+            {"name": "Nutrient",           "base_7day_amount": 3.75,   "unit": "tbsp"},
+        ],
+    },
+    # If you later want Fish: add it here in the same format once column F is populated
+}
 
-# These are column F (Large x1.25) values + units from the Excel sheet.
-# We treat the numbers as "units" in the listed unit (lb, oz, tbsp).
-INGREDIENTS = [
-    {"ingredient": "Ground Beef",       "base_7day_amount": 6.25,   "unit": "lbs"},
-    {"ingredient": "Beef Liver",       "base_7day_amount": 3.125,  "unit": "oz"},
-    {"ingredient": "Russet Potatoes",  "base_7day_amount": 71.25,  "unit": "oz"},
-    {"ingredient": "Sweet Potatoes",   "base_7day_amount": 37.5,   "unit": "oz"},
-    {"ingredient": "Carrots",          "base_7day_amount": 6.25,   "unit": "oz"},
-    {"ingredient": "Green Beans",      "base_7day_amount": 6.25,   "unit": "oz"},
-    {"ingredient": "Green Peas",       "base_7day_amount": 3.125,  "unit": "oz"},
-    {"ingredient": "Apple",            "base_7day_amount": 3.125,  "unit": "oz"},
-    {"ingredient": "Sunflower Oil",    "base_7day_amount": 4.6875, "unit": "oz"},
-    {"ingredient": "Omega",            "base_7day_amount": 1.25,   "unit": "tbsp"},
-    {"ingredient": "Nutrient",         "base_7day_amount": 3.75,   "unit": "tbsp"},
-]
+# -------------------------------------------------------------------
+# UI: tabs for each meal type
+# -------------------------------------------------------------------
 
-ingredient_df = pd.DataFrame(INGREDIENTS)
+tabs = st.tabs(list(RECIPE_DATA.keys()))
 
-# ============================
-# 1) DAYS SELECTION PROMPTS
-# ============================
+for tab, meal_name in zip(tabs, RECIPE_DATA.keys()):
+    with tab:
+        recipe = RECIPE_DATA[meal_name]
+        base_daily_oz = recipe["base_daily_oz"]
+        dex_default = recipe["dex_default"]
+        indy_default = recipe["indy_default"]
+        base_days = recipe["base_days"]
+        ingredients = recipe["ingredients"]
 
-st.subheader("How many days of food do you want to prep?")
+        st.header(f"{meal_name} Recipe")
 
-days_choice = st.radio(
-    "Choose a prep duration:",
-    (
-        "3 days (short trip)",
-        "7 days (one week)",
-        "Custom number of days",
-    ),
-)
+        # -----------------------------
+        # 1) Days selection
+        # -----------------------------
+        st.subheader("How many days of food do you want to prep?")
 
-if days_choice.startswith("3"):
-    days = 3
-elif days_choice.startswith("7"):
-    days = 7
-else:
-    days = st.number_input(
-        "Enter custom number of days:",
-        min_value=1,
-        value=7,
-        step=1,
-    )
+        col_days_select, col_days_custom = st.columns([2, 1])
 
-# ============================
-# 2) DEX / INDIANA DAILY INTAKE
-# ============================
+        with col_days_select:
+            days_choice = st.radio(
+                "Choose a prep duration:",
+                ("3 days (short trip)", "7 days (one week)", "Custom number of days"),
+                key=f"days_choice_{meal_name}",
+            )
 
-st.subheader("Dexter & Indiana's Daily Intake")
+        if days_choice.startswith("3"):
+            days = 3
+        elif days_choice.startswith("7"):
+            days = 7
+        else:
+            with col_days_custom:
+                days = st.number_input(
+                    "Custom days:",
+                    min_value=1,
+                    value=7,
+                    step=1,
+                    key=f"custom_days_{meal_name}",
+                )
 
-st.markdown(
-    "You can keep their usual portions, or change what they eat per day."
-)
+        # -----------------------------
+        # 2) Dexter & Indiana daily intake
+        # -----------------------------
+        st.subheader("Dexter & Indiana Daily Intake")
 
-change_portions = st.checkbox(
-    "Change what Dexter and Indiana eat per day?",
-    value=False,
-)
+        st.markdown("Use the original sheet values, or change what they eat per day.")
 
-if change_portions:
-    dex_daily = st.number_input("Dexter daily food (oz)", min_value=0.0, value=20.0, step=0.5)
-    indy_daily = st.number_input("Indiana daily food (oz)", min_value=0.0, value=12.0, step=0.5)
-else:
-    # Defaults – tweak to whatever you normally feed.
-    dex_daily = 20.0
-    indy_daily = 12.0
-    st.info(
-        f"Using default daily portions: Dexter = {dex_daily} oz, "
-        f"Indiana = {indy_daily} oz. Tick the checkbox above if you want to change them."
-    )
+        change_portions = st.checkbox(
+            "Change what Dexter and Indiana eat per day?",
+            value=False,
+            key=f"change_portions_{meal_name}",
+        )
 
-total_daily_oz = dex_daily + indy_daily
+        if change_portions:
+            dex_daily = st.number_input(
+                "Dexter daily food (oz)",
+                min_value=0.0,
+                value=float(dex_default),
+                step=0.5,
+                key=f"dex_daily_{meal_name}",
+            )
+            indy_daily = st.number_input(
+                "Indiana daily food (oz)",
+                min_value=0.0,
+                value=float(indy_default),
+                step=0.5,
+                key=f"indy_daily_{meal_name}",
+            )
+        else:
+            dex_daily = dex_default
+            indy_daily = indy_default
+            st.info(
+                f"Using **original recipe defaults**: "
+                f"Dexter = {dex_daily:.1f} oz, Indiana = {indy_daily:.1f} oz.\n\n"
+                "Tick the checkbox above if you want to change them."
+            )
 
-st.markdown(
-    f"""
+        total_daily_oz = dex_daily + indy_daily
+
+        st.markdown(
+            f"""
 **Daily total for both dogs:** `{total_daily_oz:.2f} oz`  
 **Prep duration:** `{int(days)} day(s)`
 """
-)
+        )
 
-if total_daily_oz == 0:
-    st.warning("Total daily intake is 0 oz — increase Dexter or Indiana’s daily ounces to get calculations.")
-    st.stop()
+        if total_daily_oz == 0:
+            st.warning("Total daily intake is 0 oz — increase Dexter or Indiana’s daily ounces.")
+            continue
 
-# ============================
-# 3) SCALE RECIPE
-# ============================
+        # -----------------------------
+        # 3) Scaling calculations
+        # -----------------------------
+        # scale_factor = (your_daily / base_daily) * (your_days / base_days)
+        scale_factor = (total_daily_oz / base_daily_oz) * (days / base_days)
 
-# Scale from original scenario: 32 oz/day, 7 days
-# scale_factor = (your_daily / 32) * (your_days / 7)
-scale_factor = (total_daily_oz / BASE_DAILY_OZ) * (days / BASE_DAYS)
+        rows = []
+        for ing in ingredients:
+            name = ing["name"]
+            base_7 = ing["base_7day_amount"]
+            unit = ing["unit"]
 
-calc_df = ingredient_df.copy()
+            # Per-day in original recipe, for base_daily_oz
+            base_per_day = base_7 / base_days
 
-# Per-day amount in the original recipe (for 32 oz/day)
-calc_df["Base_Per_Day"] = calc_df["base_7day_amount"] / BASE_DAYS
+            # Per-day for your current dogs’ intake
+            per_day_yours = base_per_day * (total_daily_oz / base_daily_oz)
 
-# Per-day amount for your dogs (same units as column F)
-calc_df["Per_Day_Amount"] = calc_df["Base_Per_Day"] * (total_daily_oz / BASE_DAILY_OZ)
+            # Total for chosen period
+            total_period = base_7 * scale_factor
 
-# Total over your chosen prep period
-calc_df["Total_For_Period"] = calc_df["base_7day_amount"] * scale_factor
+            rows.append(
+                {
+                    "Ingredient": name,
+                    "Per Day": f"{per_day_yours:.3f} {unit}".strip(),
+                    f"Total for {int(days)} days": f"{total_period:.3f} {unit}".strip(),
+                }
+            )
 
-# ============================
-# 4) DISPLAY RESULTS
-# ============================
+        result_df = pd.DataFrame(rows)
 
-st.subheader("Ingredient Requirements (same units as column F)")
+        # -----------------------------
+        # 4) Display results
+        # -----------------------------
+        st.subheader("Ingredient Requirements (scaled from column F 7-day batch)")
 
-display_df = pd.DataFrame({
-    "Ingredient": calc_df["ingredient"],
-    "Per Day": [
-        f"{amt:.3f} {unit}"
-        for amt, unit in zip(calc_df["Per_Day_Amount"], calc_df["unit"])
-    ],
-    f"Total for {int(days)} days": [
-        f"{amt:.3f} {unit}"
-        for amt, unit in zip(calc_df["Total_For_Period"], calc_df["unit"])
-    ],
-})
+        st.dataframe(result_df, use_container_width=True)
 
-st.dataframe(display_df, use_container_width=True)
-
-st.markdown(
-    f"""
-### Batch Summary
-- **Combined daily intake used for scaling:** `{total_daily_oz:.2f} oz/day`
-- **Prep duration:** `{int(days)} day(s)`
-- **Scale factor vs original 7-day / 32 oz batch:** `{scale_factor:.3f}`
+        st.markdown(
+            f"""
+**Recipe base daily (Dex + Indy):** `{base_daily_oz:.2f} oz`  
+**Your combined daily:** `{total_daily_oz:.2f} oz`  
+**Scale factor vs original 7-day batch:** `{scale_factor:.3f}`
 """
-)
+        )
 
-st.caption(
-    "All amounts are scaled from the original 7-day batch in column F, "
-    "which is calibrated for 32 oz/day total between Dexter and Indiana."
-)
+        st.caption(
+            f"All amounts for **{meal_name}** are scaled from the original column F 7-day batch "
+            "and the base Dex/Indy daily oz from your JFFD sheet."
+        )
