@@ -7,6 +7,10 @@ st.set_page_config(page_title="JFFD DIY Meal Prep Calculator", layout="centered"
 if "app_version" not in st.session_state:
     st.session_state.app_version = "original"
 
+# Callback to switch app versions
+def set_version(version_name):
+    st.session_state.app_version = version_name
+
 # -------------------------------------------------------------------
 # Embedded recipe data (no Excel needed)
 # base_7day_amount = base batch for base_days with base_daily_oz total intake
@@ -97,7 +101,7 @@ def show_original_version():
     with col_btn:
         st.write("")
         st.write("")
-        st.button("✨ Try Clean Version", on_click=lambda: st.session_state.update(app_version="clean"))
+        st.button("✨ Try Clean Version", on_click=set_version, args=("clean",))
 
     st.markdown(
         """
@@ -167,6 +171,10 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
             key="orig_custom_days"
         )
 
+    if days is None:
+        st.warning("Please enter a valid number of days.")
+        st.stop()
+
     # -------------------------------------------------------------------
     # 3) Dexter & Indiana daily intake
     # -------------------------------------------------------------------
@@ -204,6 +212,10 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
             f"Dexter = {dex_daily:.1f} oz, Indiana = {indy_daily:.1f} oz.\n\n"
             "Tick the checkbox above if you want to change them."
         )
+
+    if dex_daily is None or indy_daily is None:
+        st.warning("Please enter valid food portions.")
+        st.stop()
 
     total_daily_oz = dex_daily + indy_daily
 
@@ -316,7 +328,7 @@ def show_clean_version():
         st.markdown("<p style='font-size: 1.15rem; color: #556b2f; margin-top: 0px; font-weight: 400;'>Clean & Modern Version</p>", unsafe_allow_html=True)
     with col_btn:
         st.write("")
-        st.button("🔙 Original Version", on_click=lambda: st.session_state.update(app_version="original"))
+        st.button("🔙 Original Version", on_click=set_version, args=("original",))
 
     # Custom CSS for styling
     st.markdown(
@@ -467,6 +479,9 @@ def show_clean_version():
                 step=0.5,
                 key=f"clean_indy_{selected_recipe_name}"
             )
+            if dex_daily is None or indy_daily is None:
+                st.warning("Please enter valid food portions.")
+                st.stop()
             total_daily_oz = dex_daily + indy_daily
         elif dog_choice == "Dexter Only":
             dex_daily = st.number_input(
@@ -476,6 +491,9 @@ def show_clean_version():
                 step=0.5,
                 key=f"clean_dex_only_{selected_recipe_name}"
             )
+            if dex_daily is None:
+                st.warning("Please enter a valid daily food portion.")
+                st.stop()
             indy_daily = 0.0
             total_daily_oz = dex_daily
             st.info("🐶 Preparing food for Dexter only. Indiana is excluded.")
@@ -487,6 +505,9 @@ def show_clean_version():
                 step=0.5,
                 key=f"clean_indy_only_{selected_recipe_name}"
             )
+            if indy_daily is None:
+                st.warning("Please enter a valid daily food portion.")
+                st.stop()
             dex_daily = 0.0
             total_daily_oz = indy_daily
             st.info("🐶 Preparing food for Indiana only. Dexter is excluded.")
@@ -509,6 +530,9 @@ def show_clean_version():
                 step=1,
                 key="clean_custom_days"
             )
+        if days is None:
+            st.warning("Please enter a valid number of days.")
+            st.stop()
 
     if total_daily_oz == 0:
         st.warning("⚠️ Total daily intake is 0 oz — please increase the daily ounces.")
