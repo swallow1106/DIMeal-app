@@ -3,17 +3,34 @@ import pandas as pd
 
 st.set_page_config(page_title="JFFD DIY Meal Prep Calculator", layout="centered")
 
-# Initialize session state for app version
+# -------------------------------------------------------------------
+# Persistent State Initialization
+# -------------------------------------------------------------------
 if "app_version" not in st.session_state:
     st.session_state.app_version = "original"
+
+# Initialize default portion sizes for Dexter and Indiana
+if "dex_portions" not in st.session_state:
+    st.session_state.dex_portions = {
+        "Chicken": 22.0,
+        "Turkey": 19.0,
+        "Beef": 20.0,
+        "Fish": 23.5
+    }
+if "indy_portions" not in st.session_state:
+    st.session_state.indy_portions = {
+        "Chicken": 14.0,
+        "Turkey": 11.0,
+        "Beef": 12.0,
+        "Fish": 14.0
+    }
 
 # Callback to switch app versions
 def set_version(version_name):
     st.session_state.app_version = version_name
 
 # -------------------------------------------------------------------
-# Embedded recipe data (no Excel needed)
-# base_7day_amount = base batch for base_days with base_daily_oz total intake
+# Embedded Recipe Data
 # -------------------------------------------------------------------
 RECIPE_DATA = {
     "Chicken": {
@@ -22,7 +39,6 @@ RECIPE_DATA = {
         "indy_default": 14.0,
         "base_days": 7.0,
         "ingredients": [
-            # Chicken Thighs converted: 75.25 oz / 16 = 4.703125 lbs
             {"name": "Chicken Thighs",     "base_7day_amount": 4.703125, "unit": "lbs"},
             {"name": "Chicken Liver",      "base_7day_amount": 24.5,     "unit": "oz"},
             {"name": "Apple",              "base_7day_amount": 8.4,      "unit": "oz"},
@@ -73,9 +89,7 @@ RECIPE_DATA = {
         ],
     },
     "Fish": {
-        # Calibrated so that this 7-day batch matches your real use:
-        # Dexter = 11.75 oz/meal x2 = 23.5; Indiana = 7 oz/meal x2 = 14 → 37.5 oz/day
-        "base_daily_oz": 37.5,
+        "base_daily_oz": 37.5,   # Dex 23.5 + Indy 14
         "dex_default": 23.5,
         "indy_default": 14.0,
         "base_days": 7.0,
@@ -94,6 +108,9 @@ RECIPE_DATA = {
     },
 }
 
+# -------------------------------------------------------------------
+# ORIGINAL VERSION SCREEN
+# -------------------------------------------------------------------
 def show_original_version():
     col_hdr, col_btn = st.columns([3, 1])
     with col_hdr:
@@ -101,7 +118,7 @@ def show_original_version():
     with col_btn:
         st.write("")
         st.write("")
-        st.button("✨ Try Clean Version", on_click=set_version, args=("clean",))
+        st.button("✨ Try Mobile App UI", on_click=set_version, args=("clean",))
 
     st.markdown(
         """
@@ -119,10 +136,6 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
 """
     )
 
-    # -------------------------------------------------------------------
-    # Recipe selector (centered layout)
-    # -------------------------------------------------------------------
-
     st.subheader("1. Choose Recipe")
 
     selected_recipe_name = st.selectbox(
@@ -133,8 +146,10 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
 
     recipe = RECIPE_DATA[selected_recipe_name]
     base_daily_oz = recipe["base_daily_oz"]
-    dex_default = recipe["dex_default"]
-    indy_default = recipe["indy_default"]
+    
+    # Read portions from session state or default config
+    dex_default = st.session_state.dex_portions.get(selected_recipe_name, recipe["dex_default"])
+    indy_default = st.session_state.indy_portions.get(selected_recipe_name, recipe["indy_default"])
     base_days = recipe["base_days"]
     ingredients = recipe["ingredients"]
 
@@ -145,10 +160,6 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
 **Original 7-day batch:** values baked in from your DIY sheet / calibration.
 """
     )
-
-    # -------------------------------------------------------------------
-    # 2) How many days?
-    # -------------------------------------------------------------------
 
     st.subheader("2. How many days of food do you want to prep?")
 
@@ -175,13 +186,8 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
         st.warning("Please enter a valid number of days.")
         st.stop()
 
-    # -------------------------------------------------------------------
-    # 3) Dexter & Indiana daily intake
-    # -------------------------------------------------------------------
-
     st.subheader("3. Dexter & Indiana's Daily Intake")
-
-    st.markdown("Use the original recipe values, or change what they eat now:")
+    st.markdown("Use the default portions, or change what they eat now:")
 
     change_portions = st.checkbox(
         "Change what Dexter and Indiana eat per day?",
@@ -208,8 +214,7 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
         dex_daily = dex_default
         indy_daily = indy_default
         st.info(
-            f"Using original **{selected_recipe_name}** defaults: "
-            f"Dexter = {dex_daily:.1f} oz, Indiana = {indy_daily:.1f} oz.\n\n"
+            f"Using active defaults: Dexter = {dex_daily:.1f} oz, Indiana = {indy_daily:.1f} oz.\n\n"
             "Tick the checkbox above if you want to change them."
         )
 
@@ -230,11 +235,7 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
         st.warning("Total daily intake is 0 oz — increase Dexter or Indiana’s daily ounces.")
         st.stop()
 
-    # -------------------------------------------------------------------
-    # 4) Scale recipe
-    # -------------------------------------------------------------------
-
-    # scale_factor = (your_daily / base_daily) * (your_days / base_days)
+    # Scale factor
     scale_factor = (total_daily_oz / base_daily_oz) * (days / base_days)
 
     rows = []
@@ -245,13 +246,8 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
         base_7 = ing["base_7day_amount"]
         unit = ing["unit"]
 
-        # Per-day in original recipe for that recipe's base_daily_oz
         base_per_day = base_7 / base_days
-
-        # Per-day for your current combined intake
         per_day_yours = base_per_day * (total_daily_oz / base_daily_oz)
-
-        # Total for chosen period
         total_period = base_7 * scale_factor
 
         rows.append(
@@ -272,13 +268,8 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
     result_df = pd.DataFrame(rows)
     print_df = pd.DataFrame(print_rows)
 
-    # -------------------------------------------------------------------
-    # 5) Display results – normal view
-    # -------------------------------------------------------------------
-
     st.subheader("4. Ingredient Requirements (scaled from 7-day batch)")
-
-    st.dataframe(result_df, width="content")
+    st.dataframe(result_df, use_container_width=True)
 
     st.markdown(
         f"""
@@ -288,18 +279,11 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
 """
     )
 
-    # -------------------------------------------------------------------
-    # 6) Print-friendly view
-    # -------------------------------------------------------------------
-
     st.subheader("5. Print-Friendly Summary")
-
     show_print = st.checkbox("Show print-friendly summary (totals only)", key="orig_show_print")
 
     if show_print:
-        st.markdown(
-            f"**Print view for {selected_recipe_name} – Total for {int(days)} days**"
-        )
+        st.markdown(f"**Print view for {selected_recipe_name} – Total for {int(days)} days**")
         st.table(print_df)
 
     if selected_recipe_name == "Chicken":
@@ -315,165 +299,190 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
             "(twice daily), for a total of 37.5 oz/day."
         )
     else:
-        st.caption(
-            "All amounts are scaled from the original 7-day batch values for this recipe."
-        )
+        st.caption("All amounts are scaled from the original 7-day batch values for this recipe.")
 
-
+# -------------------------------------------------------------------
+# MOBILE-FIRST CLEAN VERSION SCREEN
+# -------------------------------------------------------------------
 def show_clean_version():
-    # Style Header & Switch Button in Columns
-    col_hdr, col_btn = st.columns([3, 1])
-    with col_hdr:
-        st.markdown("<h1 style='margin-bottom: 0px;'>JFFD DIY Meal Prep Calculator 🐶</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size: 1.15rem; color: #556b2f; margin-top: 0px; font-weight: 400;'>Clean & Modern Version</p>", unsafe_allow_html=True)
-    with col_btn:
-        st.write("")
-        st.button("🔙 Original Version", on_click=set_version, args=("original",))
-
-    # Custom CSS for styling
+    # Inject mobile app styling & Outfit Font
     st.markdown(
         """
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
         
-        /* Apply Outfit font and larger base text size */
+        /* Mobile-First Frame Emulator for Desktop */
+        @media (min-width: 600px) {
+            .main .block-container {
+                max-width: 440px !important;
+                padding: 40px 24px 30px 24px !important;
+                border: 12px solid #2e3033 !important; /* Phone Bezel */
+                border-radius: 40px !important;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.15) !important;
+                background-color: #ffffff !important;
+                margin-top: 30px !important;
+                margin-bottom: 30px !important;
+                position: relative;
+            }
+            
+            /* Notch Simulator */
+            .main .block-container::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 140px;
+                height: 20px;
+                background-color: #2e3033;
+                border-bottom-left-radius: 12px;
+                border-bottom-right-radius: 12px;
+                z-index: 999;
+            }
+        }
+        
+        /* Apply fonts globally */
         html, body, [data-testid="stAppViewContainer"], [class*="css"] {
             font-family: 'Outfit', sans-serif !important;
-            font-size: 19px !important;
+            font-size: 18px !important;
         }
         
-        /* Titles and Headers */
-        h1 {
-            font-size: 2.8rem !important;
+        /* Headers and Text */
+        .app-title {
+            font-size: 1.8rem !important;
             font-weight: 700 !important;
-            color: #2e5a32 !important; /* Forest Green */
-        }
-        
-        /* Custom Cards for UI Sections */
-        .clean-section {
-            background-color: #f7f9f6;
-            border-radius: 12px;
-            padding: 20px;
-            border-left: 6px solid #4a7c59;
-            margin-top: 25px;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-        }
-        
-        .clean-section-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: #2e5a32;
-        }
-        
-        /* Metric styling */
-        .metric-container {
-            display: flex;
-            justify-content: space-around;
-            background-color: #edf2ed;
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 20px;
-            margin-bottom: 25px;
-            border: 1px solid #c8dcd0;
-        }
-        
-        .metric-box {
+            color: #1e3f20 !important; /* Dark Green */
+            margin-bottom: 4px !important;
             text-align: center;
         }
         
+        .app-subtitle {
+            font-size: 0.95rem !important;
+            color: #556b2f !important;
+            margin-top: 0px !important;
+            margin-bottom: 20px !important;
+            text-align: center;
+            font-weight: 400;
+        }
+        
+        /* Custom Mobile Cards */
+        .mobile-card {
+            background-color: #f8faf7;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #e6ede8;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        }
+        
+        .card-header {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #1e3f20;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #e1e9e3;
+            padding-bottom: 6px;
+        }
+        
+        /* Large Highlighted Metrics */
+        .mobile-metrics {
+            display: flex;
+            justify-content: space-between;
+            background-color: #edf2ed;
+            border-radius: 14px;
+            padding: 14px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #d4ded4;
+        }
+        
+        .metric-item {
+            text-align: center;
+            flex: 1;
+        }
+        
         .metric-val {
-            font-size: 2rem;
+            font-size: 1.55rem;
             font-weight: 700;
-            color: #2e5a32;
+            color: #1e3f20;
         }
         
         .metric-lbl {
-            font-size: 0.95rem;
-            color: #555555;
+            font-size: 0.8rem;
+            color: #666666;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-top: 4px;
+            margin-top: 3px;
         }
-        
-        /* Bigger Font for inputs and checkboxes */
-        .stRadio label, .stSelectbox label, .stNumberInput label {
-            font-size: 1.15rem !important;
-            font-weight: 500 !important;
-            color: #333333 !important;
-        }
-        
-        /* Custom caption styling */
-        .custom-caption {
+
+        /* List styling for recipes */
+        .recipe-ing-list {
             font-size: 0.95rem !important;
-            color: #565656 !important;
-            line-height: 1.5;
-            background-color: #fcfcfc;
-            border: 1px solid #eef2ef;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
+            line-height: 1.6;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    # 1) Choose Recipe and Dog Selection
-    st.markdown(
-        """
-        <div class='clean-section'>
-            <div class='clean-section-title'>📋 Step 1: Recipe & Dog Selection</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # App Header
+    st.markdown("<div class='app-title'>DIMeal App 🐾</div>", unsafe_allow_html=True)
+    st.markdown("<div class='app-subtitle'>JFFD DIY Meal Prep Companion</div>", unsafe_allow_html=True)
 
-    col_rec, col_dog = st.columns([1, 1])
+    # Version toggle button inside the container
+    col_btn = st.columns([1])[0]
+    col_btn.button("🔙 Switch to Original Calculator", on_click=set_version, args=("original",), use_container_width=True)
+    st.write("")
 
-    with col_rec:
+    # Mobile Tab Navigation
+    tab_calc, tab_recipes, tab_dogs, tab_guide = st.tabs([
+        "⚖️ Calculator",
+        "📚 Recipes",
+        "🐶 Profiles",
+        "🍳 Prep Guide"
+    ])
+
+    # --------------------------------------------------------
+    # TAB 1: CALCULATOR
+    # --------------------------------------------------------
+    with tab_calc:
+        # Recipe Selection
+        st.markdown("<div class='mobile-card'><div class='card-header'>Recipe & Dog Selection</div>", unsafe_allow_html=True)
         selected_recipe_name = st.selectbox(
-            "Select recipe to prep:",
+            "Select recipe to prepare:",
             list(RECIPE_DATA.keys()),
             key="clean_recipe_select"
         )
         recipe = RECIPE_DATA[selected_recipe_name]
         base_daily_oz = recipe["base_daily_oz"]
-        dex_default = recipe["dex_default"]
-        indy_default = recipe["indy_default"]
         base_days = recipe["base_days"]
         ingredients = recipe["ingredients"]
 
-    with col_dog:
+        # Dog Selection
         dog_choice = st.radio(
             "Prepare food for:",
             ("Both Dogs (Dexter & Indiana)", "Dexter Only", "Indiana Only"),
             key="clean_dog_choice"
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # 2) Daily portions (Only showing relevant inputs)
-    st.markdown(
-        """
-        <div class='clean-section'>
-            <div class='clean-section-title'>⚖️ Step 2: Daily Portions & Prep Duration</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        # Portions & Duration
+        st.markdown("<div class='mobile-card'><div class='card-header'>Portions & Duration</div>", unsafe_allow_html=True)
+        
+        # Load defaults dynamically from session state
+        dex_default = st.session_state.dex_portions.get(selected_recipe_name, recipe["dex_default"])
+        indy_default = st.session_state.indy_portions.get(selected_recipe_name, recipe["indy_default"])
 
-    col_port, col_days = st.columns([1, 1])
-
-    with col_port:
         if dog_choice == "Both Dogs (Dexter & Indiana)":
             dex_daily = st.number_input(
-                "Dexter daily food (oz):",
+                "Dexter portion (oz/day):",
                 min_value=0.0,
                 value=float(dex_default),
                 step=0.5,
                 key=f"clean_dex_{selected_recipe_name}"
             )
             indy_daily = st.number_input(
-                "Indiana daily food (oz):",
+                "Indiana portion (oz/day):",
                 min_value=0.0,
                 value=float(indy_default),
                 step=0.5,
@@ -485,37 +494,35 @@ def show_clean_version():
             total_daily_oz = dex_daily + indy_daily
         elif dog_choice == "Dexter Only":
             dex_daily = st.number_input(
-                "Dexter daily food (oz):",
+                "Dexter portion (oz/day):",
                 min_value=0.0,
                 value=float(dex_default),
                 step=0.5,
                 key=f"clean_dex_only_{selected_recipe_name}"
             )
             if dex_daily is None:
-                st.warning("Please enter a valid daily food portion.")
+                st.warning("Please enter a valid portion size.")
                 st.stop()
             indy_daily = 0.0
             total_daily_oz = dex_daily
-            st.info("🐶 Preparing food for Dexter only. Indiana is excluded.")
         else: # Indiana Only
             indy_daily = st.number_input(
-                "Indiana daily food (oz):",
+                "Indiana portion (oz/day):",
                 min_value=0.0,
                 value=float(indy_default),
                 step=0.5,
                 key=f"clean_indy_only_{selected_recipe_name}"
             )
             if indy_daily is None:
-                st.warning("Please enter a valid daily food portion.")
+                st.warning("Please enter a valid portion size.")
                 st.stop()
             dex_daily = 0.0
             total_daily_oz = indy_daily
-            st.info("🐶 Preparing food for Indiana only. Dexter is excluded.")
 
-    with col_days:
+        # Days Choice
         days_choice = st.radio(
             "Prep duration (days):",
-            ("3 days (short trip)", "7 days (one week)", "Custom number of days"),
+            ("3 days (trip)", "7 days (week)", "Custom days"),
             key="clean_days_choice"
         )
         if days_choice.startswith("3"):
@@ -530,136 +537,145 @@ def show_clean_version():
                 step=1,
                 key="clean_custom_days"
             )
+        
         if days is None:
             st.warning("Please enter a valid number of days.")
             st.stop()
+            
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    if total_daily_oz == 0:
-        st.warning("⚠️ Total daily intake is 0 oz — please increase the daily ounces.")
-        st.stop()
+        if total_daily_oz == 0:
+            st.warning("Total daily intake cannot be 0 oz.")
+            st.stop()
 
-    # Calculate scale factor
-    scale_factor = (total_daily_oz / base_daily_oz) * (days / base_days)
+        # Calculate scale factor
+        scale_factor = (total_daily_oz / base_daily_oz) * (days / base_days)
 
-    # 3) Display Metrics Summary
-    st.markdown(
-        f"""
-        <div class="metric-container">
-            <div class="metric-box">
-                <div class="metric-val">{total_daily_oz:.1f} oz</div>
-                <div class="metric-lbl">Daily Intake</div>
+        # Display Mobile Metrics
+        st.markdown(
+            f"""
+            <div class="mobile-metrics">
+                <div class="metric-item">
+                    <div class="metric-val">{total_daily_oz:.1f} oz</div>
+                    <div class="metric-lbl">Daily Intake</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-val">{int(days)}</div>
+                    <div class="metric-lbl">Days</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-val">{scale_factor:.2f}x</div>
+                    <div class="metric-lbl">Scale</div>
+                </div>
             </div>
-            <div class="metric-box">
-                <div class="metric-val">{int(days)}</div>
-                <div class="metric-lbl">Prep Days</div>
-            </div>
-            <div class="metric-box">
-                <div class="metric-val">{scale_factor:.3f}x</div>
-                <div class="metric-lbl">Scale Factor</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+            """,
+            unsafe_allow_html=True
+        )
 
-    # Calculate rows
-    rows = []
-    print_rows = []
+        # Scale recipe ingredients
+        rows = []
+        print_rows = []
+        for ing in ingredients:
+            name = ing["name"]
+            base_7 = ing["base_7day_amount"]
+            unit = ing["unit"]
 
-    for ing in ingredients:
-        name = ing["name"]
-        base_7 = ing["base_7day_amount"]
-        unit = ing["unit"]
+            base_per_day = base_7 / base_days
+            per_day_yours = base_per_day * (total_daily_oz / base_daily_oz)
+            total_period = base_7 * scale_factor
 
-        # Per-day in original recipe for that recipe's base_daily_oz
-        base_per_day = base_7 / base_days
-
-        # Per-day for your current combined intake
-        per_day_yours = base_per_day * (total_daily_oz / base_daily_oz)
-
-        # Total for chosen period
-        total_period = base_7 * scale_factor
-
-        rows.append(
-            {
+            rows.append({
                 "Ingredient": name,
-                "Per Day": f"{per_day_yours:.3f} {unit}",
-                f"Total for {int(days)} days": f"{total_period:.3f} {unit}",
-            }
-        )
-
-        print_rows.append(
-            {
+                "Per Day": f"{per_day_yours:.2f} {unit}",
+                f"Total ({int(days)}d)": f"{total_period:.2f} {unit}"
+            })
+            print_rows.append({
                 "Ingredient": name,
-                f"Total for {int(days)} days": f"{total_period:.3f} {unit}",
-            }
-        )
+                f"Total ({int(days)}d)": f"{total_period:.2f} {unit}"
+            })
 
-    result_df = pd.DataFrame(rows)
-    print_df = pd.DataFrame(print_rows)
+        result_df = pd.DataFrame(rows)
+        print_df = pd.DataFrame(print_rows)
 
-    # 4) Ingredients requirements table
-    st.markdown(
-        """
-        <div class='clean-section'>
-            <div class='clean-section-title'>🛒 Step 3: Ingredient Requirements</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    st.dataframe(result_df, width="content")
+        # Requirements Card
+        st.markdown("<div class='mobile-card'><div class='card-header'>🛒 Scaled Ingredients</div>", unsafe_allow_html=True)
+        st.dataframe(result_df, width="content")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # 5) Print friendly view
-    st.markdown(
-        """
-        <div class='clean-section'>
-            <div class='clean-section-title'>🖨️ Step 4: Print Summary</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    show_print = st.checkbox("Show print-friendly summary (totals only)", key="clean_show_print")
-    if show_print:
-        st.markdown(f"**Print view for {selected_recipe_name} – Total for {int(days)} days ({dog_choice})**")
-        st.table(print_df)
+        # Recipe description captions
+        if selected_recipe_name == "Chicken":
+            st.caption("Chicken Thighs are shown in lbs (converted from original 75.25 oz). Other items keep original units.")
+        elif selected_recipe_name == "Fish":
+            st.caption("Fish recipe is calibrated so that a 7-day batch uses 7.2 lbs of fish (calibrated for Dex 23.5 oz and Indy 14 oz daily).")
 
-    # Recipe-specific calibration captions
-    if selected_recipe_name == "Chicken":
-        st.markdown(
-            """
-            <div class="custom-caption">
-                💡 <b>Recipe Info:</b> Chicken Thighs 7-day batch was <b>75.25 oz</b>, 
-                converted here to <b>4.703 lb</b> so the protein is shown in pounds. 
-                All other ingredients retain their original units.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    elif selected_recipe_name == "Fish":
-        st.markdown(
-            """
-            <div class="custom-caption">
-                💡 <b>Recipe Info:</b> Fish recipe is calibrated so that a 7-day batch uses <b>7.2 lb of fish</b> 
-                and matches Dexter at 11.75 oz/meal (twice daily) and Indiana at 7 oz/meal (twice daily), 
-                for a total of 37.5 oz/day.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            """
-            <div class="custom-caption">
-                💡 <b>Recipe Info:</b> All amounts are scaled from the original 7-day batch values for this recipe.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        # Print Friendly Checkbox
+        show_print = st.checkbox("Show print-friendly summary", key="clean_show_print")
+        if show_print:
+            st.markdown(f"**Print view – Total for {int(days)} days ({dog_choice})**")
+            st.table(print_df)
 
+    # --------------------------------------------------------
+    # TAB 2: RECIPES LIBRARY
+    # --------------------------------------------------------
+    with tab_recipes:
+        st.markdown("### JFFD Recipes Info")
+        for r_name, r_info in RECIPE_DATA.items():
+            with st.expander(f"📚 {r_name} Recipe"):
+                st.write(f"**Original Base Intake (Dex + Indy):** {r_info['base_daily_oz']} oz/day")
+                st.write(f"**Calibrated 7-day batch ingredients:**")
+                for ing in r_info["ingredients"]:
+                    st.write(f"- {ing['name']}: **{ing['base_7day_amount']:.3f} {ing['unit']}**")
 
-# Render version based on session state
+    # --------------------------------------------------------
+    # TAB 3: DOGS PROFILE
+    # --------------------------------------------------------
+    with tab_dogs:
+        st.markdown("### Dog Profiles 🐶")
+        st.write("Customize default daily food portions (oz) for Dexter and Indiana. Changes update the calculator defaults dynamically.")
+
+        # Dexter Card
+        st.markdown("<div class='mobile-card'><div class='card-header'>Dexter Portions (oz)</div>", unsafe_allow_html=True)
+        for r_name in RECIPE_DATA.keys():
+            st.session_state.dex_portions[r_name] = st.number_input(
+                f"{r_name} default daily portion:",
+                min_value=0.0,
+                value=float(st.session_state.dex_portions[r_name]),
+                step=0.5,
+                key=f"profile_dex_{r_name}"
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Indiana Card
+        st.markdown("<div class='mobile-card'><div class='card-header'>Indiana Portions (oz)</div>", unsafe_allow_html=True)
+        for r_name in RECIPE_DATA.keys():
+            st.session_state.indy_portions[r_name] = st.number_input(
+                f"{r_name} default daily portion:",
+                min_value=0.0,
+                value=float(st.session_state.indy_portions[r_name]),
+                step=0.5,
+                key=f"profile_indy_{r_name}"
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # --------------------------------------------------------
+    # TAB 4: PREP GUIDE
+    # --------------------------------------------------------
+    with tab_guide:
+        st.markdown("### Meal Prep Checklist 🍳")
+        st.write("Keep track of your JFFD DIY batch cooking steps:")
+
+        st.checkbox("🛒 1. Shop for ingredients (proteins, veggies, starch, oils, nutrients)", key="ch_shop")
+        st.checkbox("🍗 2. Weigh & cook protein (e.g. Ground Turkey, Chicken Thighs)", key="ch_cook")
+        st.checkbox("🍚 3. Steam/boil carbohydrates (Rice, Sweet Potatoes, or Pasta)", key="ch_carbs")
+        st.checkbox("🥦 4. Puree or steam vegetables (Carrots, Broccoli, Zucchini, etc.)", key="ch_veggies")
+        st.checkbox("🥣 5. Mix all cooked ingredients, oils, and nutrients thoroughly in a large bowl", key="ch_mix")
+        st.checkbox("📦 6. Portion out daily/weekly amounts into containers and freeze", key="ch_freeze")
+
+        st.info("💡 **Nutrient Blend Tip:** Always make sure foods are cool before adding JFFD DIY Nutrient Blend to preserve vitamins.")
+
+# -------------------------------------------------------------------
+# ROUTING
+# -------------------------------------------------------------------
 if st.session_state.app_version == "clean":
     show_clean_version()
 else:
