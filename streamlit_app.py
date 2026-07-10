@@ -415,10 +415,46 @@ def show_clean_version():
             margin-top: 3px;
         }
 
-        /* List styling for recipes */
-        .recipe-ing-list {
-            font-size: 0.95rem !important;
-            line-height: 1.6;
+        /* Ingredient Plate styling */
+        .ingredient-plate {
+            background-color: #edf2ed;
+            border-radius: 12px;
+            padding: 12px 16px;
+            border-left: 5px solid #4a7c59;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            border-top: 1px solid #e1e9e3;
+            border-right: 1px solid #e1e9e3;
+            border-bottom: 1px solid #e1e9e3;
+        }
+        
+        .plate-name {
+            font-weight: 600;
+            color: #1e3f20;
+            font-size: 1.05rem;
+        }
+        
+        .plate-subtext {
+            font-size: 0.85rem;
+            color: #555555;
+            margin-top: 2px;
+        }
+        
+        .plate-val {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1e3f20;
+            text-align: right;
+        }
+        
+        /* Bigger Font for inputs and checkboxes */
+        .stRadio label, .stSelectbox label, .stNumberInput label {
+            font-size: 1.15rem !important;
+            font-weight: 500 !important;
+            color: #333333 !important;
         }
         </style>
         """,
@@ -519,6 +555,27 @@ def show_clean_version():
             dex_daily = 0.0
             total_daily_oz = indy_daily
 
+        # Quick Portion Actions (Zero / Reset Shortcuts)
+        st.markdown("<p style='font-size: 0.9rem; color: #555555; margin-bottom: 6px; font-weight: 600;'>Quick Actions:</p>", unsafe_allow_html=True)
+        col_z1, col_z2, col_z3 = st.columns(3)
+        with col_z1:
+            if st.button("Zero Dex 🚫", key=f"zero_dex_btn_{selected_recipe_name}", use_container_width=True):
+                st.session_state[f"clean_dex_{selected_recipe_name}"] = 0.0
+                st.session_state[f"clean_dex_only_{selected_recipe_name}"] = 0.0
+                st.rerun()
+        with col_z2:
+            if st.button("Zero Indy 🚫", key=f"zero_indy_btn_{selected_recipe_name}", use_container_width=True):
+                st.session_state[f"clean_indy_{selected_recipe_name}"] = 0.0
+                st.session_state[f"clean_indy_only_{selected_recipe_name}"] = 0.0
+                st.rerun()
+        with col_z3:
+            if st.button("Reset 🔄", key=f"reset_defaults_btn_{selected_recipe_name}", use_container_width=True):
+                st.session_state[f"clean_dex_{selected_recipe_name}"] = float(dex_default)
+                st.session_state[f"clean_indy_{selected_recipe_name}"] = float(indy_default)
+                st.session_state[f"clean_dex_only_{selected_recipe_name}"] = float(dex_default)
+                st.session_state[f"clean_indy_only_{selected_recipe_name}"] = float(indy_default)
+                st.rerun()
+
         # Days Choice
         days_choice = st.radio(
             "Prep duration (days):",
@@ -551,7 +608,7 @@ def show_clean_version():
         # Calculate scale factor
         scale_factor = (total_daily_oz / base_daily_oz) * (days / base_days)
 
-        # Display Mobile Metrics
+        # Display Mobile Metrics (Intake, Days, Scale Plates)
         st.markdown(
             f"""
             <div class="mobile-metrics">
@@ -572,8 +629,9 @@ def show_clean_version():
             unsafe_allow_html=True
         )
 
-        # Scale recipe ingredients
-        rows = []
+        # Ingredients requirements custom plates rendering
+        st.markdown("<div class='mobile-card'><div class='card-header'>🛒 Scaled Ingredients</div>", unsafe_allow_html=True)
+        
         print_rows = []
         for ing in ingredients:
             name = ing["name"]
@@ -584,22 +642,28 @@ def show_clean_version():
             per_day_yours = base_per_day * (total_daily_oz / base_daily_oz)
             total_period = base_7 * scale_factor
 
-            rows.append({
-                "Ingredient": name,
-                "Per Day": f"{per_day_yours:.2f} {unit}",
-                f"Total ({int(days)}d)": f"{total_period:.2f} {unit}"
-            })
+            # Render custom UI plates matching the metric theme
+            st.markdown(
+                f"""
+                <div class="ingredient-plate">
+                    <div>
+                        <div class="plate-name">{name}</div>
+                        <div class="plate-subtext">Daily: {per_day_yours:.2f} {unit}</div>
+                    </div>
+                    <div class="plate-val">
+                        {total_period:.2f} {unit}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            
             print_rows.append({
                 "Ingredient": name,
                 f"Total ({int(days)}d)": f"{total_period:.2f} {unit}"
             })
 
-        result_df = pd.DataFrame(rows)
         print_df = pd.DataFrame(print_rows)
-
-        # Requirements Card
-        st.markdown("<div class='mobile-card'><div class='card-header'>🛒 Scaled Ingredients</div>", unsafe_allow_html=True)
-        st.dataframe(result_df, width="content")
         st.markdown("</div>", unsafe_allow_html=True)
 
         # Recipe description captions
