@@ -482,23 +482,28 @@ def show_clean_version():
     # TAB 1: CALCULATOR
     # --------------------------------------------------------
     with tab_calc:
-        # Recipe Selection
-        st.markdown("<div class='mobile-card'><div class='card-header'>Recipe & Dog Selection</div>", unsafe_allow_html=True)
+        # Recipe Selection Card
+        st.markdown("<div class='mobile-card'><div class='card-header'>🍳 Select Recipe</div>", unsafe_allow_html=True)
         selected_recipe_name = st.selectbox(
-            "Select recipe to prepare:",
+            "Which recipe are you cooking?",
             list(RECIPE_DATA.keys()),
-            key="clean_recipe_select"
+            key="clean_recipe_select",
+            label_visibility="collapsed"
         )
+        st.markdown("</div>", unsafe_allow_html=True)
+        
         recipe = RECIPE_DATA[selected_recipe_name]
         base_daily_oz = recipe["base_daily_oz"]
         base_days = recipe["base_days"]
         ingredients = recipe["ingredients"]
 
-        # Dog Selection
+        # Dog Selection Card
+        st.markdown("<div class='mobile-card'><div class='card-header'>🐕 Prepare Food For</div>", unsafe_allow_html=True)
         dog_choice = st.radio(
-            "Prepare food for:",
+            "Select dogs:",
             ("Both Dogs (Dexter & Indiana)", "Dexter Only", "Indiana Only"),
-            key="clean_dog_choice"
+            key="clean_dog_choice",
+            label_visibility="collapsed"
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -613,7 +618,7 @@ def show_clean_version():
         st.markdown("<div class='mobile-card'><div class='card-header'>🛒 Scaled Ingredients</div>", unsafe_allow_html=True)
         
         print_rows = []
-        for ing in ingredients:
+        for idx, ing in enumerate(ingredients):
             name = ing["name"]
             base_7 = ing["base_7day_amount"]
             unit = ing["unit"]
@@ -622,10 +627,18 @@ def show_clean_version():
             per_day_yours = base_per_day * (total_daily_oz / base_daily_oz)
             total_period = base_7 * scale_factor
 
+            # Alternating styles (soft green / soft warm gold)
+            if idx % 2 == 0:
+                plate_bg = "#edf2ed"      # Soft Green
+                plate_border = "#4a7c59"  # Olive Green
+            else:
+                plate_bg = "#faf5ec"      # Soft Warm Gold
+                plate_border = "#d4af37"  # Warm Gold
+
             # Render custom UI plates matching the metric theme
             st.markdown(
                 f"""
-                <div class="ingredient-plate">
+                <div class="ingredient-plate" style="background-color: {plate_bg}; border-left: 5px solid {plate_border};">
                     <div>
                         <div class="plate-name">{name}</div>
                         <div class="plate-subtext">Daily: {per_day_yours:.2f} {unit}</div>
