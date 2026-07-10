@@ -555,26 +555,6 @@ def show_clean_version():
             dex_daily = 0.0
             total_daily_oz = indy_daily
 
-        # Quick Portion Actions (Zero / Reset Shortcuts)
-        st.markdown("<p style='font-size: 0.9rem; color: #555555; margin-bottom: 6px; font-weight: 600;'>Quick Actions:</p>", unsafe_allow_html=True)
-        col_z1, col_z2, col_z3 = st.columns(3)
-        with col_z1:
-            if st.button("Zero Dex 🚫", key=f"zero_dex_btn_{selected_recipe_name}", use_container_width=True):
-                st.session_state[f"clean_dex_{selected_recipe_name}"] = 0.0
-                st.session_state[f"clean_dex_only_{selected_recipe_name}"] = 0.0
-                st.rerun()
-        with col_z2:
-            if st.button("Zero Indy 🚫", key=f"zero_indy_btn_{selected_recipe_name}", use_container_width=True):
-                st.session_state[f"clean_indy_{selected_recipe_name}"] = 0.0
-                st.session_state[f"clean_indy_only_{selected_recipe_name}"] = 0.0
-                st.rerun()
-        with col_z3:
-            if st.button("Reset 🔄", key=f"reset_defaults_btn_{selected_recipe_name}", use_container_width=True):
-                st.session_state[f"clean_dex_{selected_recipe_name}"] = float(dex_default)
-                st.session_state[f"clean_indy_{selected_recipe_name}"] = float(indy_default)
-                st.session_state[f"clean_dex_only_{selected_recipe_name}"] = float(dex_default)
-                st.session_state[f"clean_indy_only_{selected_recipe_name}"] = float(indy_default)
-                st.rerun()
 
         # Days Choice
         days_choice = st.radio(
