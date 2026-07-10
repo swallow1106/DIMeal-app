@@ -278,7 +278,7 @@ Main proteins are shown in **pounds**, other ingredients keep their original uni
 
     st.subheader("4. Ingredient Requirements (scaled from 7-day batch)")
 
-    st.dataframe(result_df, width="stretch")
+    st.dataframe(result_df, use_container_width=True)
 
     st.markdown(
         f"""
@@ -608,7 +608,7 @@ def show_clean_version():
         unsafe_allow_html=True,
     )
     
-    st.dataframe(result_df, width="stretch")
+    st.dataframe(result_df, use_container_width=True)
 
     # 5) Print friendly view
     st.markdown(
