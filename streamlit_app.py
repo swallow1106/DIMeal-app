@@ -252,7 +252,7 @@ print_df = pd.DataFrame(print_rows)
 
 st.subheader("4. Ingredient Requirements (scaled from 7-day batch)")
 
-st.dataframe(result_df, use_container_width=True)
+st.dataframe(result_df, width="stretch")
 
 st.markdown(
     f"""
