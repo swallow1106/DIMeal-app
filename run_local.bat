@@ -35,7 +35,7 @@ if errorlevel 1 (
 echo.
 echo [INFO] Starting JFFD DIY Meal Prep Calculator...
 echo.
-streamlit run streamlit_app.py
+streamlit run streamlit_app.py --server.port 8505
 
 :: If Streamlit crashes or stops, pause so the error traceback is visible
 echo.
